@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>EBS 한국기행 지도</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
+  <style>
+    /* ── 색상 변수 ── */
+    :root {
+      --bg:       #F5F0E8;
+      --surface:  #FDFAF5;
+      --white:    #FFFFFF;
+      --border:   #E2D9CC;
+      --border2:  #CEC3B4;
+      --accent:   #C07A3A;
+      --accent-d: #A06025;
+      --accent-l: #F0E0CC;
+      --green:    #6B9E7A;
+      --text:     #2C1F0E;
+      --text2:    #6B5A46;
+      --text3:    #9A8A78;
+      --tag-bg:   #EDE5D8;
+      --shadow:   rgba(80, 50, 20, 0.12);
+      --shadow-m: rgba(80, 50, 20, 0.22);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body { height: 100%; overflow: hidden; font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; background: var(--bg); color: var(--text); }
+
+    /* ═══════════════════════ HEADER ═══════════════════════ */
+    #header {
+      height: 56px;
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      box-shadow: 0 1px 6px var(--shadow);
+      display: flex; align-items: center; gap: 10px;
+      padding: 0 14px;
+      position: relative; z-index: 1000;
+    }
+
+    /* 로고 */
+    #logo { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+    #logo .ebs-badge {
+      background: var(--accent); color: #fff;
+      font-size: 0.62rem; font-weight: 800; letter-spacing: 0.5px;
+      padding: 2px 6px; border-radius: 4px; flex-shrink: 0;
+    }
+    #logo h1 { font-size: 0.95rem; font-weight: 700; color: var(--text); white-space: nowrap; }
+    #logo h1 em { color: var(--accent); font-style: normal; }
+
+    /* 검색창 */
+    #search-wrap { position: relative; flex: 1; min-width: 0; }
+    #search {
+      width: 100%; height: 36px;
+      padding: 0 34px 0 36px;
+      background: var(--bg); border: 1.5px solid var(--border2);
+      border-radius: 20px; color: var(--text); font-size: 0.88rem;
+      outline: none; transition: border-color .2s, box-shadow .2s;
+    }
+    #search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(192,122,58,.12); }
+    #search::placeholder { color: var(--text3); }
+    .search-icon {
+      position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+      color: var(--text3); font-size: 0.9rem; pointer-events: none;
+    }
+    #search-clear {
+      position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+      cursor: pointer; color: var(--text3); font-size: 0.78rem;
+      width: 18px; height: 18px; display: none; align-items: center; justify-content: center;
+      background: var(--border2); border-radius: 50%;
+    }
+    #search-clear.vis { display: flex; }
+
+    /* 통계 */
+    #stats {
+      font-size: 0.72rem; color: var(--text3);
+      white-space: nowrap; flex-shrink: 0;
+      display: none; /* 모바일에서 숨김 */
+    }
+
+    /* 사이드바 토글 버튼 (모바일) */
+    #list-toggle {
+      display: none;
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--accent); color: #fff; border: none;
+      font-size: 1rem; cursor: pointer; flex-shrink: 0;
+      align-items: center; justify-content: center;
+      box-shadow: 0 2px 8px var(--shadow-m);
+    }
+
+    /* ═══════════════════════ 자동완성 ═══════════════════════ */
+    #autocomplete {
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+      background: var(--white); border: 1.5px solid var(--border2);
+      border-radius: 12px; max-height: 260px; overflow-y: auto;
+      z-index: 3000; display: none;
+      box-shadow: 0 6px 24px var(--shadow-m);
+    }
+    #autocomplete.vis { display: block; }
+    #autocomplete::-webkit-scrollbar { width: 4px; }
+    #autocomplete::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+    .ac-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px; cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      transition: background .12s;
+    }
+    .ac-row:last-child { border-bottom: none; }
+    .ac-row:hover, .ac-row.hi { background: var(--accent-l); }
+    .ac-icon { font-size: 0.9rem; flex-shrink: 0; }
+    .ac-info { flex: 1; min-width: 0; }
+    .ac-name { font-size: 0.88rem; color: var(--text); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ac-series { font-size: 0.72rem; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ac-cnt { font-size: 0.72rem; color: var(--accent); font-weight: 700; flex-shrink: 0; }
+
+    /* ═══════════════════════ LAYOUT ═══════════════════════ */
+    #main { display: flex; height: calc(100vh - 56px); position: relative; overflow: hidden; }
+
+    /* ═══════════════════════ MAP ═══════════════════════ */
+    #map { flex: 1; z-index: 1; }
+
+    /* 연대 필터 (지도 위 오버레이) */
+    #decade-filter {
+      position: absolute; top: 12px; left: 12px; z-index: 500;
+      display: flex; gap: 6px; flex-wrap: wrap;
+    }
+    .dec-btn {
+      padding: 5px 12px; border-radius: 20px;
+      background: var(--white); border: 1.5px solid var(--border2);
+      color: var(--text2); font-size: 0.78rem; font-weight: 600;
+      cursor: pointer; transition: all .15s;
+      box-shadow: 0 1px 6px var(--shadow);
+    }
+    .dec-btn.active, .dec-btn:hover {
+      background: var(--accent); border-color: var(--accent);
+      color: #fff;
+    }
+
+    /* ═══════════════════════ SIDEBAR (데스크탑) ═══════════════════════ */
+    #sidebar {
+      width: 340px; min-width: 280px;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      overflow: hidden;
+      transition: width .25s ease, transform .25s ease;
+      z-index: 100;
+    }
+    #sidebar.closed { width: 0; min-width: 0; border: none; overflow: hidden; }
+
+    /* ═══════════════════════ BOTTOM SHEET (모바일) ═══════════════════════ */
+    /* 모바일 스타일은 미디어쿼리에서 재정의 */
+
+    /* ── 사이드바 내부 ── */
+    #sb-head {
+      padding: 14px 14px 10px;
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      position: relative;
+    }
+    .sb-location-icon { font-size: 1.1rem; margin-right: 5px; }
+    #sb-title { font-size: 1rem; font-weight: 700; color: var(--text); padding-right: 24px; line-height: 1.3; }
+    #sb-meta { font-size: 0.75rem; color: var(--text3); margin-top: 3px; }
+    #sb-close {
+      position: absolute; right: 12px; top: 12px;
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--tag-bg); border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.8rem; color: var(--text2); transition: background .15s;
+    }
+    #sb-close:hover { background: var(--border2); }
+
+    /* 정렬 & 내부 검색 */
+    #sb-toolbar {
+      display: none;
+      padding: 8px 12px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      gap: 6px; align-items: center;
+    }
+    #sb-toolbar.vis { display: flex; }
+    .sort-btn {
+      padding: 4px 9px; border-radius: 6px;
+      background: var(--white); border: 1.5px solid var(--border2);
+      color: var(--text3); font-size: 0.72rem; font-weight: 600;
+      cursor: pointer; transition: all .15s;
+    }
+    .sort-btn.active { background: var(--accent-l); border-color: var(--accent); color: var(--accent-d); }
+    #ep-filter-wrap { flex: 1; position: relative; }
+    #ep-filter {
+      width: 100%; padding: 5px 10px; font-size: 0.78rem;
+      background: var(--white); border: 1.5px solid var(--border2);
+      border-radius: 8px; color: var(--text); outline: none;
+      transition: border-color .15s;
+    }
+    #ep-filter:focus { border-color: var(--accent); }
+
+    /* 에피소드 목록 */
+    #ep-list { flex: 1; overflow-y: auto; }
+    #ep-list::-webkit-scrollbar { width: 4px; }
+    #ep-list::-webkit-scrollbar-track { background: var(--bg); }
+    #ep-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+    .ep-card {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer; transition: background .12s;
+      background: var(--white);
+    }
+    .ep-card:hover { background: var(--accent-l); }
+    .ep-card:last-child { border-bottom: none; }
+
+    .ep-top { display: flex; align-items: center; justify-content: flex-end; margin-bottom: 3px; }
+    .ep-date { font-size: 0.68rem; color: var(--text3); }
+    .ep-title-text {
+      font-size: 0.86rem; color: var(--text); line-height: 1.4; font-weight: 600;
+      margin-bottom: 5px;
+    }
+    .ep-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 5px; }
+    .ep-tag {
+      font-size: 0.64rem; padding: 2px 7px;
+      background: var(--tag-bg); border-radius: 10px; color: var(--text2);
+      cursor: pointer; transition: background .15s, color .15s;
+    }
+    .ep-tag:hover { background: var(--accent-l); color: var(--accent-d); }
+    .ep-tag-series {
+      background: #EAE0D5; color: var(--text2); font-weight: 600;
+    }
+    .ep-tag-series:hover { background: var(--accent-l); color: var(--accent-d); }
+    .ep-play {
+      display: inline-flex; align-items: center; gap: 4px;
+      margin-top: 7px; font-size: 0.74rem;
+      color: var(--accent-d); font-weight: 700;
+      padding: 4px 10px; border: 1.5px solid var(--accent);
+      border-radius: 6px; text-decoration: none;
+      background: var(--white); transition: all .15s;
+    }
+    .ep-play:hover { background: var(--accent); color: #fff; }
+    #ep-none { padding: 24px 14px; text-align: center; color: var(--text3); font-size: 0.84rem; }
+
+    /* 빈 상태 */
+    #sb-empty {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 30px 20px; gap: 12px; text-align: center;
+    }
+    .sb-empty-icon { font-size: 3rem; opacity: .5; }
+    .sb-empty-text { font-size: 0.85rem; color: var(--text3); line-height: 1.7; }
+
+    /* 로딩 */
+    #loading {
+      position: fixed; inset: 0;
+      background: rgba(245,240,232,.92);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 9999; gap: 14px;
+    }
+    .spinner {
+      width: 38px; height: 38px;
+      border: 3px solid var(--border2);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .65s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #loading p { color: var(--text2); font-size: 0.88rem; }
+
+    /* Leaflet 클러스터 기본 스타일 재정의 */
+    .marker-cluster-small,
+    .marker-cluster-medium,
+    .marker-cluster-large {
+      background: rgba(192, 122, 58, 0.25) !important;
+    }
+    .marker-cluster-small div,
+    .marker-cluster-medium div,
+    .marker-cluster-large div {
+      background: rgba(192, 122, 58, 0.7) !important;
+      color: #fff !important; font-weight: 700 !important;
+    }
+
+    /* ═══════════════════════ 모바일 (<= 768px) ═══════════════════════ */
+    @media (max-width: 768px) {
+      #stats { display: none; }
+      #list-toggle { display: flex; }
+      #logo h1 { font-size: 0.88rem; }
+
+      /* 사이드바 → 바텀 시트 */
+      #sidebar {
+        position: fixed;
+        left: 0; right: 0; bottom: 0;
+        width: 100% !important; min-width: 0;
+        height: 0;
+        border-left: none;
+        border-top: 1px solid var(--border);
+        border-radius: 16px 16px 0 0;
+        box-shadow: 0 -4px 24px var(--shadow-m);
+        transition: height .3s cubic-bezier(.4,0,.2,1);
+        z-index: 700;
+      }
+      #sidebar.open {
+        height: 72vh;
+      }
+      #sidebar.closed {
+        height: 0; width: 100% !important;
+      }
+
+      /* 드래그 핸들 */
+      #sb-head::before {
+        content: '';
+        display: block;
+        width: 36px; height: 4px;
+        background: var(--border2); border-radius: 2px;
+        margin: 0 auto 10px;
+      }
+      #sb-close { top: 18px; }
+
+      /* 연대 필터 */
+      #decade-filter { top: 8px; left: 8px; gap: 4px; }
+      .dec-btn { font-size: 0.72rem; padding: 4px 10px; }
+    }
+
+    /* 데스크탑 (>768px) */
+    @media (min-width: 769px) {
+      #stats { display: block; }
+      #list-toggle { display: none; }
+      #sidebar { position: relative; transform: none !important; }
+      #sidebar.closed { width: 0; }
+      #sidebar.open, #sidebar:not(.closed) { height: auto; }
+    }
+
+    /* 아주 작은 화면 */
+    @media (max-width: 380px) {
+      #logo .ebs-badge { display: none; }
+      #header { gap: 7px; padding: 0 10px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── 헤더 ── -->
+<div id="header">
+  <div id="logo">
+    <span class="ebs-badge">EBS</span>
+    <h1><em>한국기행</em> 지도</h1>
+  </div>
+  <div id="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input id="search" type="text" placeholder="지역, 시리즈, 키워드 검색…" autocomplete="off" spellcheck="false">
+    <span id="search-clear">✕</span>
+    <div id="autocomplete"></div>
+  </div>
+  <div id="stats">로딩 중…</div>
+  <button id="list-toggle" title="목록 보기">☰</button>
+</div>
+
+<!-- ── 본문 ── -->
+<div id="main">
+  <div id="map">
+    <!-- 연대 필터 오버레이 -->
+    <div id="decade-filter">
+      <button class="dec-btn active" data-decade="all">전체</button>
+      <button class="dec-btn" data-decade="2010s">2010년대</button>
+      <button class="dec-btn" data-decade="2020s">2020년대</button>
+    </div>
+  </div>
+
+  <!-- ── 사이드바 / 바텀 시트 ── -->
+  <div id="sidebar" class="closed">
+    <div id="sb-head">
+      <div id="sb-title"><span class="sb-location-icon">📍</span>지역을 선택하세요</div>
+      <div id="sb-meta"></div>
+      <button id="sb-close">✕</button>
+    </div>
+    <div id="sb-toolbar">
+      <span style="font-size:.72rem;color:var(--text3);flex-shrink:0">정렬</span>
+      <button class="sort-btn active" data-sort="date">방영일순</button>
+      <button class="sort-btn" data-sort="ep">회차순</button>
+      <div id="ep-filter-wrap">
+        <input id="ep-filter" type="text" placeholder="에피소드 검색…">
+      </div>
+    </div>
+    <div id="sb-empty">
+      <div class="sb-empty-icon">🗾</div>
+      <p class="sb-empty-text">지도에서 마커를 클릭하거나<br>위 검색창에서 지역을 입력하세요</p>
+    </div>
+    <div id="ep-list" style="display:none"></div>
+  </div>
+</div>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <p>3,971편 데이터 불러오는 중…</p>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+/* ══════════════════════════════════════
+   지도 초기화
+══════════════════════════════════════ */
+const map = L.map('map', {
+  center: [36.5, 127.9],
+  zoom: 7,
+  preferCanvas: true,
+  zoomControl: false,
+});
+// 줌 컨트롤 오른쪽 아래
+L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+// ── 타일 레이어: 한국어 지명 우선 ──────────────────────────
+// 1순위: 브이월드 (국토지리정보원 공식, 한국어 지명 전용)
+// 2순위: OSM 표준 (한국 내 한국어 표기)
+// 3순위: CartoDB Light (최후 폴백)
+
+const TILES = {
+  vworld: L.tileLayer(
+    'https://xdworld.vworld.kr/2d/Base/202002/{z}/{x}/{y}.png',
+    {
+      attribution: '&copy; <a href="https://www.vworld.kr" target="_blank">브이월드</a> · <a href="https://www.ngii.go.kr" target="_blank">국토지리정보원</a>',
+      maxZoom: 18, minZoom: 6,
+      crossOrigin: true,
+    }
+  ),
+  osm: L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      subdomains: 'abc', maxZoom: 19,
+    }
+  ),
+  carto: L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    {
+      attribution: '&copy; OpenStreetMap &copy; CARTO',
+      subdomains: 'abcd', maxZoom: 19,
+    }
+  ),
+};
+
+// 브이월드 타일 로드 실패 시 OSM → CartoDB 순으로 폴백
+let _fallbackDone = false;
+TILES.vworld.on('tileerror', () => {
+  if (_fallbackDone) return;
+  _fallbackDone = true;
+  map.removeLayer(TILES.vworld);
+  // OSM도 혹시 안 되면 CartoDB
+  let _osm2carto = false;
+  TILES.osm.on('tileerror', () => {
+    if (_osm2carto) return;
+    _osm2carto = true;
+    map.removeLayer(TILES.osm);
+    TILES.carto.addTo(map);
+  });
+  TILES.osm.addTo(map);
+});
+TILES.vworld.addTo(map);
+
+/* ══════════════════════════════════════
+   상태
+══════════════════════════════════════ */
+let ALL        = [];   // 전체 위치 데이터
+let VISIBLE    = [];   // 필터 적용 후
+let markerMap  = {};   // series_name → L.marker
+let cluster    = null;
+let activeLoc  = null;
+let sortMode   = 'date';
+let decadeFilter = 'all';
+
+/* ══════════════════════════════════════
+   아이콘
+══════════════════════════════════════ */
+const mkIcon = (sel = false) => {
+  const s = sel ? 16 : 11;
+  const color = sel ? '#A06025' : '#C07A3A';
+  const border = sel ? '#FFFFFF' : 'rgba(255,255,255,0.8)';
+  return L.divIcon({
+    html: `<div style="width:${s}px;height:${s}px;border-radius:50%;background:${color};border:2px solid ${border};box-shadow:0 1px 5px rgba(80,40,0,0.35)"></div>`,
+    className: '', iconSize: [s, s], iconAnchor: [s/2, s/2],
+  });
+};
+
+const clusterIcon = n => {
+  const s = n > 80 ? 46 : n > 30 ? 38 : 30;
+  const opacity = n > 30 ? 0.88 : 0.78;
+  return L.divIcon({
+    html: `<div style="width:${s}px;height:${s}px;border-radius:50%;
+             background:rgba(192,122,58,${opacity});
+             border:2px solid rgba(255,255,255,0.75);
+             display:flex;align-items:center;justify-content:center;
+             font-size:${s>38?13:10}px;font-weight:800;color:#fff;
+             box-shadow:0 2px 10px rgba(80,40,0,0.3)">${n}</div>`,
+    className: '', iconSize: [s, s], iconAnchor: [s/2, s/2],
+  });
+};
+
+/* ══════════════════════════════════════
+   데이터 로드
+══════════════════════════════════════ */
+fetch('data/locations_v2.json')
+  .then(r => {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  })
+  .then(data => {
+    document.getElementById('loading').style.display = 'none';
+    ALL     = data;
+    VISIBLE = data;
+    buildMap(data);
+    updateStats(data);
+  })
+  .catch(err => {
+    document.getElementById('loading').innerHTML =
+      `<p style="color:#c05;font-size:.9rem">데이터 로드 실패: ${err.message}</p>`;
+  });
+
+/* ══════════════════════════════════════
+   마커 렌더링
+══════════════════════════════════════ */
+function buildMap(locs) {
+  if (cluster) map.removeLayer(cluster);
+  markerMap = {};
+
+  cluster = L.markerClusterGroup({
+    maxClusterRadius: 40,
+    spiderfyOnMaxZoom: true,
+    showCoverageOnHover: false,
+    iconCreateFunction: c => {
+      const total = c.getAllChildMarkers()
+        .reduce((sum, m) => sum + (m.options._epCount || 1), 0);
+      return clusterIcon(total);
+    },
+  });
+
+  locs.forEach(loc => {
+    const m = L.marker([loc.lat, loc.lng], { icon: mkIcon(), _epCount: loc.episode_count });
+    const tipHtml = `<div style="font-weight:700;margin-bottom:2px">${loc.display_name}</div>`
+      + `<div style="color:#C07A3A;font-weight:700;font-size:.78rem">${loc.episode_count}편</div>`;
+    m.bindTooltip(tipHtml, { direction: 'top', offset: [0, -7], className: 'tt-warm' });
+    m.on('click', () => openSidebar(loc, m));
+    markerMap[loc.display_name] = m;
+    cluster.addLayer(m);
+  });
+
+  map.addLayer(cluster);
+}
+
+/* ══════════════════════════════════════
+   통계
+══════════════════════════════════════ */
+function updateStats(locs) {
+  const total = locs.reduce((s, l) => s + l.episode_count, 0);
+  document.getElementById('stats').textContent = `${locs.length}개 지역 · ${total.toLocaleString()}편`;
+}
+
+/* ══════════════════════════════════════
+   사이드바 열기
+══════════════════════════════════════ */
+function openSidebar(loc, markerEl) {
+  // 이전 마커 리셋
+  if (activeLoc && markerMap[activeLoc.display_name]) {
+    markerMap[activeLoc.display_name].setIcon(mkIcon(false));
+  }
+  activeLoc = loc;
+  if (markerEl) markerEl.setIcon(mkIcon(true));
+
+  // 헤더 업데이트
+  document.getElementById('sb-title').innerHTML =
+    `<span class="sb-location-icon">📍</span>${loc.display_name}`;
+  document.getElementById('sb-meta').textContent = `총 ${loc.episode_count}편`;
+
+  // 툴바 & 목록
+  document.getElementById('sb-toolbar').classList.add('vis');
+  document.getElementById('sb-empty').style.display = 'none';
+  document.getElementById('ep-filter').value = '';
+
+  const epList = document.getElementById('ep-list');
+  epList.style.display = 'block';
+  renderEpisodes(loc.episodes, '', loc.display_name);
+
+  // 사이드바 열기
+  const sb = document.getElementById('sidebar');
+  sb.classList.remove('closed');
+  sb.classList.add('open');
+
+  // 지도 이동
+  const isMobile = window.innerWidth <= 768;
+  if (!isMobile) {
+    map.setView([loc.lat, loc.lng], Math.max(map.getZoom(), 10), { animate: true });
+  } else {
+    map.setView([loc.lat, loc.lng], Math.max(map.getZoom(), 9), { animate: true });
+  }
+}
+
+/* ══════════════════════════════════════
+   에피소드 렌더링
+══════════════════════════════════════ */
+function renderEpisodes(eps, filterText, locationName = '') {
+  const list = document.getElementById('ep-list');
+  list.innerHTML = '';
+
+  let items = [...eps];
+
+  // 텍스트 필터
+  const q = filterText.trim().toLowerCase();
+  if (q) {
+    items = items.filter(e =>
+      (e.title || '').toLowerCase().includes(q) ||
+      (e.subtitle || '').toLowerCase().includes(q) ||
+      (e.keywords || []).some(k => k.toLowerCase().includes(q))
+    );
+  }
+
+  // 정렬
+  if (sortMode === 'date') {
+    items.sort((a, b) => (a.broadcast_date || '') < (b.broadcast_date || '') ? -1 : 1);
+  } else {
+    items.sort((a, b) => (a.episode_number || 999) - (b.episode_number || 999));
+  }
+
+  if (!items.length) {
+    list.innerHTML = '<div id="ep-none">검색 결과가 없습니다</div>';
+    return;
+  }
+
+  const frag = document.createDocumentFragment();
+  items.forEach(ep => {
+    const card = document.createElement('div');
+    card.className = 'ep-card';
+
+    const dateHtml = ep.broadcast_date
+      ? `<span class="ep-date">${ep.broadcast_date}</span>` : '';
+    const locBadge = locationName
+      ? `<span class="ep-num">${locationName}</span>` : '';
+    // 제목: "서울, 4부 도시, 낭만을 입다" 형태로 조합
+    const subtitle = (ep.subtitle && ep.subtitle.trim()) ? ep.subtitle : '';
+    const numPart  = ep.episode_number ? `${ep.episode_number}부` : '';
+    const parts    = [ep.series_name, numPart, subtitle].filter(Boolean);
+    const displayTitle = parts.join(' ') || ep.title;
+    const kwTags = (ep.keywords || []).slice(0, 5)
+      .map(k => `<span class="ep-tag" data-kw="${k}">${k}</span>`).join('');
+
+    card.innerHTML = `
+      <div class="ep-top">${locBadge}${dateHtml}</div>
+      <div class="ep-title-text">${displayTitle}</div>
+      ${kwTags ? `<div class="ep-tags">${kwTags}</div>` : ''}
+      ${ep.service_url
+        ? `<a class="ep-play" href="${ep.service_url}" target="_blank" rel="noopener">▶ EBS에서 보기</a>`
+        : ''}`;
+
+    // 태그 클릭 → 검색
+    card.addEventListener('click', e => {
+      const tag = e.target.closest('.ep-tag');
+      if (tag && tag.dataset.kw) {
+        e.stopPropagation();
+        const kw = tag.dataset.kw;
+        srchEl.value = kw;
+        clrEl.classList.add('vis');
+        acResults = doSearch(kw);
+        renderAC(acResults);
+        srchEl.focus();
+        return;
+      }
+      // 카드 전체 클릭 → EBS 이동
+      if (ep.service_url && !e.target.closest('.ep-play')) {
+        window.open(ep.service_url, '_blank');
+      }
+    });
+    if (ep.service_url) card.style.cursor = 'pointer';
+    frag.appendChild(card);
+  });
+  list.appendChild(frag);
+}
+
+/* ══════════════════════════════════════
+   정렬 버튼
+══════════════════════════════════════ */
+document.querySelectorAll('.sort-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    sortMode = btn.dataset.sort;
+    if (activeLoc) renderEpisodes(activeLoc.episodes, document.getElementById('ep-filter').value, activeLoc.display_name);
+  });
+});
+
+/* ══════════════════════════════════════
+   에피소드 내 검색
+══════════════════════════════════════ */
+document.getElementById('ep-filter').addEventListener('input', e => {
+  if (activeLoc) renderEpisodes(activeLoc.episodes, e.target.value, activeLoc.display_name);
+});
+
+/* ══════════════════════════════════════
+   연대 필터
+══════════════════════════════════════ */
+document.querySelectorAll('.dec-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.dec-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    decadeFilter = btn.dataset.decade;
+    applyFilters();
+  });
+});
+
+function applyFilters() {
+  let filtered = ALL;
+  if (decadeFilter === '2010s') {
+    filtered = ALL.filter(l =>
+      l.episodes.some(e => e.broadcast_date && e.broadcast_date >= '2010' && e.broadcast_date < '2020')
+    );
+  } else if (decadeFilter === '2020s') {
+    filtered = ALL.filter(l =>
+      l.episodes.some(e => e.broadcast_date && e.broadcast_date >= '2020')
+    );
+  }
+  VISIBLE = filtered;
+  buildMap(filtered);
+  updateStats(filtered);
+}
+
+/* ══════════════════════════════════════
+   검색 / 자동완성  (버그 수정)
+══════════════════════════════════════ */
+const srchEl  = document.getElementById('search');
+const clrEl   = document.getElementById('search-clear');
+const acEl    = document.getElementById('autocomplete');
+
+let acResults = [];
+let acIdx     = -1;
+
+// 결과 렌더링
+function renderAC(results) {
+  acEl.innerHTML = '';
+  if (!results.length) { acEl.classList.remove('vis'); return; }
+
+  results.forEach((loc, i) => {
+    const row = document.createElement('div');
+    row.className = 'ac-row';
+    row.dataset.idx = String(i);
+
+    row.innerHTML = `
+      <span class="ac-icon">📍</span>
+      <div class="ac-info">
+        <div class="ac-name">${loc.display_name}</div>
+      </div>
+      <span class="ac-cnt">${loc.episode_count}편</span>`;
+
+    // ★ 클릭 핸들러: i를 직접 캡처
+    row.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const chosen = acResults[i];
+      if (!chosen) return;
+      srchEl.value = chosen.display_name;
+      clrEl.classList.add('vis');
+      acEl.classList.remove('vis');
+      openSidebar(chosen, markerMap[chosen.display_name]);
+    });
+
+    acEl.appendChild(row);
+  });
+  acEl.classList.add('vis');
+  acIdx = -1;
+}
+
+// 검색 수행
+function doSearch(q) {
+  if (!q.trim()) return [];
+  const lq = q.toLowerCase();
+  const results = [];
+  for (const loc of VISIBLE) {
+    let score = 0;
+    if (loc.display_name.toLowerCase().startsWith(lq)) score = 4;
+    else if (loc.display_name.toLowerCase().includes(lq)) score = 3;
+    else if (loc.episodes.some(e =>
+      (e.series_name || '').toLowerCase().includes(lq) ||
+      (e.subtitle || '').toLowerCase().includes(lq) ||
+      (e.title || '').toLowerCase().includes(lq)
+    )) score = 2;
+    else if (loc.episodes.some(e =>
+      (e.keywords || []).some(k => k.toLowerCase().includes(lq))
+    )) score = 1;
+    if (score > 0) results.push({ loc, score });
+  }
+  results.sort((a, b) => b.score - a.score || b.loc.episode_count - a.loc.episode_count);
+  return results.slice(0, 12).map(r => r.loc);
+}
+
+srchEl.addEventListener('input', () => {
+  const q = srchEl.value;
+  clrEl.classList.toggle('vis', q.trim().length > 0);
+
+  if (!q.trim()) {
+    acEl.classList.remove('vis');
+    acResults = [];
+    return;
+  }
+
+  acResults = doSearch(q);
+  renderAC(acResults);
+});
+
+// 키보드 탐색
+srchEl.addEventListener('keydown', e => {
+  const rows = acEl.querySelectorAll('.ac-row');
+  if (!rows.length) return;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    acIdx = Math.min(acIdx + 1, rows.length - 1);
+    rows.forEach((r, i) => r.classList.toggle('hi', i === acIdx));
+    rows[acIdx]?.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    acIdx = Math.max(acIdx - 1, 0);
+    rows.forEach((r, i) => r.classList.toggle('hi', i === acIdx));
+    rows[acIdx]?.scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (acIdx >= 0) rows[acIdx].click();
+    else if (rows.length > 0) rows[0].click();
+  } else if (e.key === 'Escape') {
+    acEl.classList.remove('vis');
+    srchEl.blur();
+  }
+});
+
+// 지우기 버튼
+clrEl.addEventListener('click', () => {
+  srchEl.value = '';
+  clrEl.classList.remove('vis');
+  acEl.classList.remove('vis');
+  acResults = [];
+  srchEl.focus();
+});
+
+// 바깥 클릭
+document.addEventListener('click', e => {
+  if (!e.target.closest('#search-wrap')) {
+    acEl.classList.remove('vis');
+  }
+});
+
+/* ══════════════════════════════════════
+   사이드바 닫기
+══════════════════════════════════════ */
+function closeSidebar() {
+  const sb = document.getElementById('sidebar');
+  sb.classList.add('closed');
+  sb.classList.remove('open');
+  if (activeLoc && markerMap[activeLoc.display_name]) {
+    markerMap[activeLoc.display_name].setIcon(mkIcon(false));
+  }
+  activeLoc = null;
+}
+
+document.getElementById('sb-close').addEventListener('click', closeSidebar);
+document.getElementById('list-toggle').addEventListener('click', () => {
+  const sb = document.getElementById('sidebar');
+  if (sb.classList.contains('open') || !sb.classList.contains('closed')) {
+    closeSidebar();
+  } else {
+    sb.classList.remove('closed');
+    sb.classList.add('open');
+  }
+});
+
+/* ══════════════════════════════════════
+   Leaflet 툴팁 커스텀 CSS
+══════════════════════════════════════ */
+const styleEl = document.createElement('style');
+styleEl.textContent = `
+/* ── 툴팁 ── */
+.tt-warm {
+  background: #FDFAF5 !important;
+  border: 1.5px solid #CEC3B4 !important;
+  color: #2C1F0E !important;
+  border-radius: 8px !important;
+  font-size: .82rem;
+  padding: 6px 10px !important;
+  box-shadow: 0 3px 12px rgba(80,40,0,.18) !important;
+  font-family: 'Malgun Gothic','Apple SD Gothic Neo',sans-serif;
+}
+.tt-warm::before { border-top-color: #CEC3B4 !important; }
+.leaflet-tooltip-top.tt-warm::before { border-top-color: #CEC3B4 !important; }
+
+/* ── 브이월드 타일에 따뜻한 베이지 필터 ──
+   브이월드 기본 지도가 로드되면 색조를 살짝 조정해 베이지 테마와 어울리게 함 */
+.leaflet-tile-pane {
+  filter: sepia(12%) saturate(0.88) brightness(1.04) contrast(0.96);
+}
+/* OSM 폴백 때는 필터 강도 약간 조정 */
+body.tile-osm .leaflet-tile-pane {
+  filter: sepia(16%) saturate(0.78) brightness(1.07) contrast(0.93);
+}
+
+/* ── 지도 레이어 전환 버튼 ── */
+#tile-switcher {
+  position: absolute; bottom: 80px; right: 10px;
+  z-index: 500;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.tile-btn {
+  padding: 5px 10px; border-radius: 6px;
+  background: var(--white); border: 1.5px solid var(--border2);
+  color: var(--text2); font-size: 0.72rem; font-weight: 600;
+  cursor: pointer; box-shadow: 0 1px 5px var(--shadow);
+  transition: all .15s; white-space: nowrap;
+}
+.tile-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tile-btn:hover:not(.active) { background: var(--accent-l); border-color: var(--accent); }
+/* 모바일: 크기 최소화 & 바텀시트 위로 올림 */
+@media (max-width: 768px) {
+  #tile-switcher { bottom: 16px; right: 10px; }
+  .tile-btn { font-size: 0.68rem; padding: 4px 8px; }
+}
+`;
+document.head.appendChild(styleEl);
+
+/* ── 타일 전환 UI ── */
+const switcherEl = document.createElement('div');
+switcherEl.id = 'tile-switcher';
+switcherEl.innerHTML = `
+  <button class="tile-btn active" data-tile="vworld">🗺️ 브이월드</button>
+  <button class="tile-btn" data-tile="osm">🌐 OSM</button>
+  <button class="tile-btn" data-tile="carto">🎨 밝은지도</button>
+`;
+document.getElementById('map').appendChild(switcherEl);
+
+switcherEl.querySelectorAll('.tile-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const key = btn.dataset.tile;
+    // 기존 레이어 제거
+    Object.values(TILES).forEach(t => { if (map.hasLayer(t)) map.removeLayer(t); });
+    // 새 레이어 추가
+    TILES[key].addTo(map);
+    // 버튼 상태
+    switcherEl.querySelectorAll('.tile-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    // OSM 폴백 표시
+    document.body.classList.toggle('tile-osm', key === 'osm');
+    // 폴백 플래그 초기화
+    _fallbackDone = (key !== 'vworld');
+  });
+});
+</script>
+</body>
+</html>

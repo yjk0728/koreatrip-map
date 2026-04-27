@@ -1,0 +1,128 @@
+{
+  "가야산": {
+    "series_name": "가야산",
+    "display_name": "가야산",
+    "lat": 35.8267,
+    "lng": 128.1166,
+    "source": "lookup"
+  },
+  "가을 내장산": {
+    "series_name": "가을 내장산",
+    "display_name": "내장산",
+    "lat": 35.4829,
+    "lng": 126.8883,
+    "source": "lookup"
+  },
+  "가을 섬진강": {
+    "series_name": "가을 섬진강",
+    "display_name": "섬진강",
+    "lat": 35.3,
+    "lng": 127.5,
+    "source": "lookup"
+  },
+  "가을 속리산": {
+    "series_name": "가을 속리산",
+    "display_name": "속리산",
+    "lat": 36.5437,
+    "lng": 127.8595,
+    "source": "lookup"
+  },
+  "가을 지리산": {
+    "series_name": "가을 지리산",
+    "display_name": "지리산",
+    "lat": 35.3373,
+    "lng": 127.7308,
+    "source": "lookup"
+  },
+  "가을길": {
+    "series_name": "가을길",
+    "display_name": "가을길",
+    "lat": 36.3720898,
+    "lng": 126.9334505,
+    "source": "nominatim"
+  },
+  "가을섬,추자도": {
+    "series_name": "가을섬,추자도",
+    "display_name": "추자도",
+    "lat": 33.9167,
+    "lng": 126.8333,
+    "source": "lookup"
+  },
+  "가을에도 제주도": {
+    "series_name": "가을에도 제주도",
+    "display_name": "제주",
+    "lat": 33.4996,
+    "lng": 126.5312,
+    "source": "lookup"
+  },
+  "가을이 오면 괴산": {
+    "series_name": "가을이 오면 괴산",
+    "display_name": "괴산",
+    "lat": 36.8157,
+    "lng": 127.7867,
+    "source": "lookup"
+  },
+  "가평,": {
+    "series_name": "가평,",
+    "display_name": "가평",
+    "lat": 37.8314,
+    "lng": 127.5098,
+    "source": "lookup"
+  },
+  "강릉": {
+    "series_name": "강릉",
+    "display_name": "강릉",
+    "lat": 37.7519,
+    "lng": 128.8761,
+    "source": "lookup"
+  },
+  "강릉,": {
+    "series_name": "강릉,",
+    "display_name": "강릉",
+    "lat": 37.7519,
+    "lng": 128.8761,
+    "source": "lookup"
+  },
+  "강원 산골 표류기": {
+    "series_name": "강원 산골 표류기",
+    "display_name": "강원",
+    "lat": 37.8228,
+    "lng": 128.1555,
+    "source": "lookup"
+  },
+  "강원 여름 고수": {
+    "series_name": "강원 여름 고수",
+    "display_name": "강원",
+    "lat": 37.8228,
+    "lng": 128.1555,
+    "source": "lookup"
+  },
+  "강원고갯길": {
+    "series_name": "강원고갯길",
+    "display_name": "강원",
+    "lat": 37.8228,
+    "lng": 128.1555,
+    "source": "lookup"
+  },
+  "강원도 겨울연가,": {
+    "series_name": "강원도 겨울연가,",
+    "display_name": "강원",
+    "lat": 37.8228,
+    "lng": 128.1555,
+    "source": "lookup"
+  },
+  "강원도로 오시드래요": {
+    "series_name": "강원도로 오시드래요",
+    "display_name": "강원",
+    "lat": 37.8228,
+    "lng": 128.1555,
+    "source": "lookup"
+  },
+  "강원도의 가을": {
+    "series_name": "강원도의 가을",
+    "display_name": "강원",
+    "lat": 37.8228,
+    "lng": 128.1555,
+    "source": "lookup"
+  }
+}
