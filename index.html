@@ -497,6 +497,8 @@
 <!-- ── 본문 ── -->
 <div id="main">
   <div id="map">
+    <!-- 카카오맵 배경 컨테이너 (Leaflet 마커 레이어 뒤에 위치) -->
+    <div id="kakao-map-container"></div>
     <!-- 부동형 검색 버튼 -->
     <button id="map-search-btn" title="검색">🔍</button>
     <!-- 연대 필터 오버레이 -->
@@ -540,6 +542,13 @@
 <div id="autocomplete"></div>
 
 <script>
+/* ══════════════════════════════════════
+   카카오 지도 API 키
+   https://developers.kakao.com 에서 JavaScript 앱 키를 발급받아 입력하세요.
+   허용 도메인에 yyjkim2.vercel.app 과 localhost 를 추가해야 합니다.
+══════════════════════════════════════ */
+const KAKAO_APP_KEY = '';  // ← 여기에 카카오 JavaScript 앱 키 입력
+
 /* ══════════════════════════════════════
    Leaflet 지도 초기화
 ══════════════════════════════════════ */
@@ -1077,6 +1086,16 @@ body.tile-osm .leaflet-tile-pane {
   filter: sepia(16%) saturate(0.78) brightness(1.07) contrast(0.93);
 }
 
+/* ── 카카오맵 배경 컨테이너 ── */
+#kakao-map-container {
+  display: none;
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  z-index: 1;          /* Leaflet pane(z≥200) 아래, 배경으로만 사용 */
+  pointer-events: none; /* 모든 입력은 Leaflet이 처리 */
+}
+/* 카카오 모드: Leaflet 컨테이너 배경 투명화 */
+body.kakao-mode .leaflet-container { background: transparent !important; }
+
 /* ── 지도 레이어 전환 버튼 ── */
 #tile-switcher {
   position: absolute; bottom: 80px; right: 10px;
@@ -1100,10 +1119,106 @@ body.tile-osm .leaflet-tile-pane {
 `;
 document.head.appendChild(styleEl);
 
+/* ══════════════════════════════════════
+   카카오맵 연동
+══════════════════════════════════════ */
+let kakaoMapInst = null;   // kakao.maps.Map 인스턴스
+let kakaoMode    = false;  // 현재 카카오맵 모드 여부
+let kakaoSyncing = false;  // 이벤트 루프 방지 플래그
+
+/** Leaflet zoom → Kakao level 변환 */
+function toKakaoLevel(z) { return Math.max(1, Math.min(14, 19 - z)); }
+
+/** Kakao level → Leaflet zoom 변환 */
+function toLeafletZoom(l) { return Math.max(5, Math.min(18, 19 - l)); }
+
+/** Leaflet 이동/줌 → 카카오 동기화 */
+function syncL2K() {
+  if (!kakaoMapInst || kakaoSyncing || !kakaoMode) return;
+  kakaoSyncing = true;
+  const c = map.getCenter();
+  kakaoMapInst.setCenter(new kakao.maps.LatLng(c.lat, c.lng));
+  kakaoMapInst.setLevel(toKakaoLevel(map.getZoom()));
+  kakaoSyncing = false;
+}
+
+/** 카카오 이동/줌 → Leaflet 동기화 */
+function syncK2L() {
+  if (!kakaoMapInst || kakaoSyncing || !kakaoMode) return;
+  kakaoSyncing = true;
+  const c = kakaoMapInst.getCenter();
+  map.setView([c.getLat(), c.getLng()], toLeafletZoom(kakaoMapInst.getLevel()), { animate: false });
+  kakaoSyncing = false;
+}
+
+/** 카카오맵 SDK 동적 로드 → 콜백 실행 */
+function loadKakaoSDK(callback) {
+  if (typeof kakao !== 'undefined' && kakao.maps) { callback(); return; }
+  const s = document.createElement('script');
+  s.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_APP_KEY}&autoload=false`;
+  s.onerror = () => {
+    alert('카카오맵 SDK 로드 실패.\nAPI 키와 허용 도메인을 확인해주세요.\n(카카오 개발자 콘솔 → 앱 설정 → 플랫폼 → Web)');
+    deactivateKakaoMode(true);
+  };
+  s.onload = () => kakao.maps.load(callback);
+  document.head.appendChild(s);
+}
+
+/** 카카오맵 인스턴스 초기화 (최초 1회) */
+function initKakaoInst() {
+  if (kakaoMapInst) return;
+  const container = document.getElementById('kakao-map-container');
+  const c = map.getCenter();
+  kakaoMapInst = new kakao.maps.Map(container, {
+    center: new kakao.maps.LatLng(c.lat, c.lng),
+    level: toKakaoLevel(map.getZoom()),
+  });
+  // 카카오 → Leaflet 동기화
+  kakao.maps.event.addListener(kakaoMapInst, 'center_changed', syncK2L);
+  kakao.maps.event.addListener(kakaoMapInst, 'zoom_changed',   syncK2L);
+  // Leaflet → 카카오 동기화
+  map.on('moveend zoomend', syncL2K);
+}
+
+/** 카카오맵 모드 활성화 */
+function activateKakaoMode() {
+  if (!KAKAO_APP_KEY) {
+    alert('KAKAO_APP_KEY가 비어 있습니다.\nindex.html 상단의 KAKAO_APP_KEY 값을 설정해주세요.');
+    deactivateKakaoMode(true);
+    return;
+  }
+  loadKakaoSDK(() => {
+    initKakaoInst();
+    kakaoMode = true;
+    // Leaflet 타일 숨기기
+    Object.values(TILES).forEach(t => { if (map.hasLayer(t)) map.removeLayer(t); });
+    // 카카오 컨테이너 표시 & 배경 투명화
+    document.getElementById('kakao-map-container').style.display = 'block';
+    document.body.classList.add('kakao-mode');
+    // 위치 동기화 & 레이아웃 갱신
+    syncL2K();
+    kakaoMapInst.relayout();
+    _fallbackDone = true;
+  });
+}
+
+/** 카카오맵 모드 비활성화 */
+function deactivateKakaoMode(restoreCarto = false) {
+  kakaoMode = false;
+  document.getElementById('kakao-map-container').style.display = 'none';
+  document.body.classList.remove('kakao-mode');
+  if (restoreCarto) {
+    TILES.carto.addTo(map);
+    switcherEl.querySelectorAll('.tile-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.tile === 'carto'));
+  }
+}
+
 /* ── 타일 전환 UI ── */
 const switcherEl = document.createElement('div');
 switcherEl.id = 'tile-switcher';
 switcherEl.innerHTML = `
+  <button class="tile-btn" data-tile="kakao">🟡 카카오맵</button>
   <button class="tile-btn" data-tile="vworld">🗺️ 브이월드</button>
   <button class="tile-btn" data-tile="osm">🌐 OSM</button>
   <button class="tile-btn active" data-tile="carto">🎨 밝은지도</button>
@@ -1113,17 +1228,24 @@ document.getElementById('map').appendChild(switcherEl);
 switcherEl.querySelectorAll('.tile-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const key = btn.dataset.tile;
-    // 기존 레이어 제거
-    Object.values(TILES).forEach(t => { if (map.hasLayer(t)) map.removeLayer(t); });
-    // 새 레이어 추가
-    TILES[key].addTo(map);
-    // 버튼 상태
+
+    // 버튼 상태 먼저 갱신
     switcherEl.querySelectorAll('.tile-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    // OSM 폴백 표시
-    document.body.classList.toggle('tile-osm', key === 'osm');
-    // 폴백 플래그 초기화
-    _fallbackDone = (key !== 'vworld');
+
+    if (key === 'kakao') {
+      // 카카오맵 모드로 전환
+      deactivateKakaoMode(false);  // 기존 Leaflet 타일 제거
+      Object.values(TILES).forEach(t => { if (map.hasLayer(t)) map.removeLayer(t); });
+      activateKakaoMode();
+    } else {
+      // 일반 Leaflet 타일 모드
+      deactivateKakaoMode(false);
+      Object.values(TILES).forEach(t => { if (map.hasLayer(t)) map.removeLayer(t); });
+      TILES[key].addTo(map);
+      document.body.classList.toggle('tile-osm', key === 'osm');
+      _fallbackDone = (key !== 'vworld');
+    }
   });
 });
 </script>
