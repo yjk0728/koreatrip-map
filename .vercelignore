@@ -1,0 +1,18 @@
+# Python 스크립트 (웹 서비스 불필요)
+*.py
+__pycache__/
+
+# 빌드/개발용 데이터 파일 (웹에서 사용 안 함)
+data/episodes.json
+data/episodes_raw.json
+data/locations.json
+data/geocode_cache.json
+data/nominatim_cache.json
+data/series_analysis.txt
+
+# 임시 파일
+tmp_*.txt
+*.log
+
+# Claude 설정
+.claude/
