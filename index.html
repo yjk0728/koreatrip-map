@@ -519,8 +519,8 @@
     </div>
     <div id="sb-toolbar">
       <span style="font-size:.72rem;color:var(--text3);flex-shrink:0">정렬</span>
-      <button class="sort-btn active" data-sort="date">방영일순</button>
-      <button class="sort-btn" data-sort="ep">회차순</button>
+      <button class="sort-btn active" data-sort="date-desc">최신순</button>
+      <button class="sort-btn" data-sort="date-asc">방영일 오름차순</button>
       <div id="ep-filter-wrap">
         <input id="ep-filter" type="text" placeholder="에피소드 검색…">
       </div>
@@ -586,7 +586,7 @@ let VISIBLE    = [];   // 필터 적용 후
 let markerMap  = {};   // series_name → L.marker
 let cluster    = null;
 let activeLoc  = null;
-let sortMode   = 'date';
+let sortMode   = 'date-desc';
 let decadeFilter = 'all';
 
 /* ══════════════════════════════════════
@@ -757,10 +757,10 @@ function renderEpisodes(eps, filterText, locationName = '') {
   }
 
   // 정렬
-  if (sortMode === 'date') {
-    items.sort((a, b) => (a.broadcast_date || '') < (b.broadcast_date || '') ? -1 : 1);
+  if (sortMode === 'date-desc') {
+    items.sort((a, b) => (b.broadcast_date || '') < (a.broadcast_date || '') ? -1 : 1); // 최신순 (내림차순)
   } else {
-    items.sort((a, b) => (a.episode_number || 999) - (b.episode_number || 999));
+    items.sort((a, b) => (a.broadcast_date || '') < (b.broadcast_date || '') ? -1 : 1); // 방영일 오름차순
   }
 
   if (!items.length) {
