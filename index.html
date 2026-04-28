@@ -1124,31 +1124,19 @@ document.head.appendChild(styleEl);
 ══════════════════════════════════════ */
 let kakaoMapInst = null;   // kakao.maps.Map 인스턴스
 let kakaoMode    = false;  // 현재 카카오맵 모드 여부
-let kakaoSyncing = false;  // 이벤트 루프 방지 플래그
 
-/** Leaflet zoom → Kakao level 변환 */
+/** Leaflet zoom → Kakao level 변환
+ *  Leaflet 7(한국 전체) → Kakao 12,  Leaflet 12(도시) → Kakao 7 */
 function toKakaoLevel(z) { return Math.max(1, Math.min(14, 19 - z)); }
 
-/** Kakao level → Leaflet zoom 변환 */
-function toLeafletZoom(l) { return Math.max(5, Math.min(18, 19 - l)); }
-
-/** Leaflet 이동/줌 → 카카오 동기화 */
+/** Leaflet → 카카오 단방향 동기화
+ *  pointer-events:none 으로 카카오는 직접 조작 불가 → 양방향 싱크 불필요
+ *  'move' 이벤트 사용으로 드래그 중에도 즉각 따라옴 */
 function syncL2K() {
-  if (!kakaoMapInst || kakaoSyncing || !kakaoMode) return;
-  kakaoSyncing = true;
+  if (!kakaoMapInst || !kakaoMode) return;
   const c = map.getCenter();
   kakaoMapInst.setCenter(new kakao.maps.LatLng(c.lat, c.lng));
-  kakaoMapInst.setLevel(toKakaoLevel(map.getZoom()));
-  kakaoSyncing = false;
-}
-
-/** 카카오 이동/줌 → Leaflet 동기화 */
-function syncK2L() {
-  if (!kakaoMapInst || kakaoSyncing || !kakaoMode) return;
-  kakaoSyncing = true;
-  const c = kakaoMapInst.getCenter();
-  map.setView([c.getLat(), c.getLng()], toLeafletZoom(kakaoMapInst.getLevel()), { animate: false });
-  kakaoSyncing = false;
+  kakaoMapInst.setLevel(toKakaoLevel(map.getZoom()), { animate: false });
 }
 
 /** 카카오맵 SDK 동적 로드 → 콜백 실행 */
@@ -1173,11 +1161,8 @@ function initKakaoInst() {
     center: new kakao.maps.LatLng(c.lat, c.lng),
     level: toKakaoLevel(map.getZoom()),
   });
-  // 카카오 → Leaflet 동기화
-  kakao.maps.event.addListener(kakaoMapInst, 'center_changed', syncK2L);
-  kakao.maps.event.addListener(kakaoMapInst, 'zoom_changed',   syncK2L);
-  // Leaflet → 카카오 동기화
-  map.on('moveend zoomend', syncL2K);
+  // Leaflet → 카카오 단방향 동기화 (드래그 중 실시간 반영)
+  map.on('move zoom', syncL2K);
 }
 
 /** 카카오맵 모드 활성화 */
